@@ -1,7 +1,9 @@
 """modern-di integration for Starlette."""
 
 import contextlib
+import dataclasses
 import enum
+import functools
 import typing
 
 from modern_di import Container, Scope, providers
@@ -11,6 +13,9 @@ from starlette.types import ASGIApp, Lifespan, Receive, Send
 from starlette.types import Scope as ASGIScope
 from starlette.websockets import WebSocket
 
+
+T_co = typing.TypeVar("T_co", covariant=True)
+T = typing.TypeVar("T")
 
 starlette_request_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=Request)
 starlette_websocket_provider = providers.ContextProvider(scope=Scope.SESSION, context_type=WebSocket)
@@ -84,3 +89,48 @@ def setup_di(app: Starlette, container: Container) -> Container:
     app.router.lifespan_context = _compose_lifespan(app.router.lifespan_context)
     app.add_middleware(_DIMiddleware, container=container)
     return container
+
+
+@dataclasses.dataclass(slots=True, frozen=True)
+class _FromDI(typing.Generic[T_co]):
+    dependency: providers.AbstractProvider[T_co] | type[T_co]
+
+
+def FromDI(dependency: providers.AbstractProvider[T_co] | type[T_co]) -> T_co:  # noqa: N802
+    return typing.cast(T_co, _FromDI(dependency))
+
+
+def _parse_inject_params(func: typing.Callable[..., typing.Any]) -> dict[str, _FromDI[typing.Any]]:
+    hints = typing.get_type_hints(func, include_extras=True)
+    di_params: dict[str, _FromDI[typing.Any]] = {}
+    for name, hint in hints.items():
+        if name == "return":
+            continue
+        if typing.get_origin(hint) is typing.Annotated:
+            for meta in typing.get_args(hint)[1:]:
+                if isinstance(meta, _FromDI):
+                    di_params[name] = meta
+                    break
+    return di_params
+
+
+def _resolve_di_params(container: Container, di_params: dict[str, _FromDI[typing.Any]]) -> dict[str, typing.Any]:
+    return {
+        name: (
+            container.resolve_provider(marker.dependency)
+            if isinstance(marker.dependency, providers.AbstractProvider)
+            else container.resolve(dependency_type=marker.dependency)
+        )
+        for name, marker in di_params.items()
+    }
+
+
+def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[..., typing.Awaitable[T]]:
+    di_params = _parse_inject_params(func)
+
+    @functools.wraps(func)
+    async def wrapper(connection: Request | WebSocket) -> T:
+        child_container: Container = connection.scope[_CONTAINER_SCOPE_KEY]
+        return await func(connection, **_resolve_di_params(child_container, di_params))
+
+    return wrapper
