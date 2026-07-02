@@ -35,3 +35,9 @@ At call time the wrapper:
 
 The endpoint's first parameter is the connection; every `FromDI` parameter
 follows and is filled by keyword. `FromDI` parameters coexist with plain ones.
+
+The `Request`/`WebSocket` instance a provider receives as DI context (via
+`starlette_request_provider`/`starlette_websocket_provider`) is backed by the
+same ASGI `scope` as the endpoint's connection but is a distinct instance —
+safe for reading `method`/`url`/`headers`/`state`, but reading the request
+body through it is not intended (resolution is sync-only anyway).

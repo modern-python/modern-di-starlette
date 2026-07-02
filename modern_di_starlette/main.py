@@ -130,7 +130,15 @@ def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[.
 
     @functools.wraps(func)
     async def wrapper(connection: Request | WebSocket) -> T:
-        child_container: Container = connection.scope[_CONTAINER_SCOPE_KEY]
+        try:
+            child_container: Container = connection.scope[_CONTAINER_SCOPE_KEY]
+        except KeyError:
+            msg = (
+                "No modern-di container found in the request scope. "
+                "Call setup_di(app, container) so requests pass through the modern-di middleware "
+                "before using @inject."
+            )
+            raise RuntimeError(msg) from None
         return await func(connection, **_resolve_di_params(child_container, di_params))
 
     return wrapper

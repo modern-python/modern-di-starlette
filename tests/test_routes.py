@@ -1,5 +1,6 @@
 import typing
 
+import pytest
 from starlette import status
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -41,3 +42,18 @@ def test_context_provider_reads_request(client: TestClient, app: Starlette) -> N
     response = client.get("/")
     assert response.status_code == status.HTTP_200_OK
     assert response.text == "GET"
+
+
+def test_inject_without_setup_di_raises_clear_error() -> None:
+    @inject
+    async def read_root(
+        request: Request,  # noqa: ARG001
+        app_factory_instance: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+    ) -> PlainTextResponse:
+        return PlainTextResponse(app_factory_instance.dep1)  # pragma: no cover -- RuntimeError precedes this call
+
+    app = Starlette()
+    app.add_route("/", read_root)
+
+    with pytest.raises(RuntimeError, match="setup_di"):
+        TestClient(app).get("/")
