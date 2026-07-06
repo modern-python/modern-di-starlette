@@ -40,7 +40,7 @@ def test_setup_di_composes_with_existing_lifespan() -> None:
         events.append("shutdown")
 
     app = Starlette(lifespan=user_lifespan)
-    container = modern_di.Container(groups=[Dependencies])
+    container = modern_di.Container(groups=[Dependencies], validate=True)
     modern_di_starlette.setup_di(app, container)
 
     async def read_marker(request: Request) -> JSONResponse:
