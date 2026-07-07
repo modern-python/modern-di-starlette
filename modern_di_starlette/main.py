@@ -85,7 +85,7 @@ class _DIMiddleware:
 
 def setup_di(app: Starlette, container: Container) -> Container:
     app.state.di_container = container
-    container.providers_registry.add_providers(*_CONNECTION_PROVIDERS)
+    container.add_providers(*_CONNECTION_PROVIDERS)
     app.router.lifespan_context = _compose_lifespan(app.router.lifespan_context)
     app.add_middleware(_DIMiddleware, container=container)
     return container
@@ -115,14 +115,7 @@ def _parse_inject_params(func: typing.Callable[..., typing.Any]) -> dict[str, _F
 
 
 def _resolve_di_params(container: Container, di_params: dict[str, _FromDI[typing.Any]]) -> dict[str, typing.Any]:
-    return {
-        name: (
-            container.resolve_provider(marker.dependency)
-            if isinstance(marker.dependency, providers.AbstractProvider)
-            else container.resolve(dependency_type=marker.dependency)
-        )
-        for name, marker in di_params.items()
-    }
+    return {name: container.resolve_dependency(marker.dependency) for name, marker in di_params.items()}
 
 
 def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[..., typing.Awaitable[T]]:

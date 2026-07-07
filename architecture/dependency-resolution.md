@@ -14,7 +14,8 @@ uses an inert marker plus a decorator (the decorator path from modern-di's
 It returns `typing.cast(T, _FromDI(dependency))`: type checkers see the resolved
 type `T`, while at runtime it is a frozen `_FromDI` marker the decorator detects.
 The argument is a provider (`AbstractProvider`) or a bare type — resolution
-handles both (`resolve_provider` vs `resolve`).
+handles both via `Container.resolve_dependency`, modern-di's marker-dispatch
+seam for integrations.
 
 ## @inject
 
