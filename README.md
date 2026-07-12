@@ -19,6 +19,8 @@
 
 [Modern-DI](https://github.com/modern-python/modern-di) integration for [Starlette](https://www.starlette.io).
 
+Full guide: [Starlette integration docs](https://modern-di.modern-python.org/integrations/starlette/)
+
 ## Installation
 
 ```bash
@@ -69,7 +71,26 @@ container = Container(groups=[Dependencies], validate=True)
 setup_di(app, container)
 ```
 
+An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection opens a `Scope.SESSION` one, both built by the middleware before your handler runs. The connection `starlette.requests.Request` / `starlette.websockets.WebSocket` are resolvable within DI via the pre-built `starlette_request_provider` / `starlette_websocket_provider` context providers.
+
+## API
+
+| Symbol | Description |
+|---|---|
+| `setup_di(app, container)` | Registers the container on `app.state`, composes the lifespan (opens/closes the container), and installs the middleware that builds a per-connection child container; returns the container |
+| `FromDI(dependency)` | Inert marker (used with `@inject`) that resolves a provider or type from the per-connection child container |
+| `inject(handler)` | Decorator for an `async def` handler taking a `Request` or `WebSocket`; resolves its `FromDI`-annotated parameters |
+| `fetch_di_container(app)` | Returns the root `Container` stored on `app.state` |
+| `starlette_request_provider` | `ContextProvider` for `starlette.requests.Request` (`REQUEST` scope), auto-registered |
+| `starlette_websocket_provider` | `ContextProvider` for `starlette.websockets.WebSocket` (`SESSION` scope), auto-registered |
+
+## 📦 [PyPI](https://pypi.org/project/modern-di-starlette)
+
+## 📝 [License](LICENSE)
+
 ## Part of `modern-python`
 
-Built on [`modern-di`](https://github.com/modern-python/modern-di). See the
-[docs](https://modern-di.modern-python.org/integrations/) for all integrations.
+Built on [`modern-di`](https://github.com/modern-python/modern-di), a dependency-injection framework with IoC container and scopes.
+
+Browse the full list of templates and libraries in
+[`modern-python`](https://github.com/modern-python) — see the org profile for the categorized index.
