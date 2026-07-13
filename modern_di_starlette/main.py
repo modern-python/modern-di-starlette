@@ -2,11 +2,10 @@
 
 import contextlib
 import dataclasses
-import enum
 import functools
 import typing
 
-from modern_di import Container, Scope, providers
+from modern_di import Container, Scope, integrations, providers
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.types import ASGIApp, Lifespan, Receive, Send
@@ -64,23 +63,13 @@ class _DIMiddleware:
         connection: Request | WebSocket = (
             Request(scope, receive) if scope["type"] == "http" else WebSocket(scope, receive, send)
         )
-        context: dict[type[typing.Any], typing.Any] = {}
-        # `enum.IntEnum`, not `Scope`: `AbstractProvider.scope` is typed broadly to
-        # support custom scope enums, and `build_child_container(scope=...)` takes
-        # the same broad type — matching it here keeps `ty` happy without a cast.
-        connection_scope: enum.IntEnum | None = None
-        for provider in _CONNECTION_PROVIDERS:
-            if isinstance(connection, provider.context_type):
-                context[provider.context_type] = connection
-                connection_scope = provider.scope
-                break
-
-        child_container = self.container.build_child_container(context=context, scope=connection_scope)
-        scope[_CONTAINER_SCOPE_KEY] = child_container
-        try:
+        match = integrations.classify_connection(connection, _CONNECTION_PROVIDERS)
+        async with self.container.build_child_container(
+            scope=match.scope if match else None,
+            context=match.context if match else None,
+        ) as child_container:
+            scope[_CONTAINER_SCOPE_KEY] = child_container
             await self.app(scope, receive, send)
-        finally:
-            await child_container.close_async()
 
 
 def setup_di(app: Starlette, container: Container) -> Container:
