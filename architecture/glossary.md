@@ -18,6 +18,6 @@ A `ContextProvider` pairing a Starlette connection type (`Request`, `WebSocket`)
 with the scope its child container opens at.
 
 **FromDI marker**:
-The inert `Annotated` metadata (`_FromDI`) that flags an endpoint parameter for
-resolution by `@inject`.
+The inert `Annotated` metadata (`modern_di.integrations.Marker`) that flags an
+endpoint parameter for resolution by `@inject`.
 _Avoid_: Depends (that is FastAPI's mechanism, not Starlette's).

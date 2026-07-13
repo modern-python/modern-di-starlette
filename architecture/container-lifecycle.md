@@ -38,10 +38,17 @@ context and its yielded state passes straight through.
 breaks `contextvars` propagation). For each `http` / `websocket` connection it:
 
 1. Builds the connection object (`Request` / `WebSocket`) from the ASGI scope.
-2. Matches it against the connection providers: a `Request` opens a
-   `Scope.REQUEST` child; a `WebSocket` opens a `Scope.SESSION` child.
-3. Builds the child container with the connection injected as context and
-   stashes it in the ASGI `scope` dict under the internal `_CONTAINER_SCOPE_KEY`.
-4. Closes the child container (`close_async`) when the connection finishes.
+2. Matches it against the connection providers via
+   `modern_di.integrations.classify_connection` (a `Request` opens a
+   `Scope.REQUEST` child; a `WebSocket` opens a `Scope.SESSION` child) — the
+   isinstance-over-tuple dispatch itself lives in modern-di's integration kit,
+   not here.
+3. Opens the child container as an `async with` block —
+   `Container.build_child_container(scope=..., context=...)` returns a
+   container that is already open, so entering it is a no-op; the middleware
+   stashes it in the ASGI `scope` dict under the internal
+   `_CONTAINER_SCOPE_KEY` for the duration of the block.
+4. Exiting the block closes the child container (`close_async`), including on
+   the exception path.
 
 Other scope types (`lifespan`) pass straight through untouched.
