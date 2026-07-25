@@ -21,6 +21,8 @@
 
 Full guide: [Starlette integration docs](https://modern-di.modern-python.org/integrations/starlette/)
 
+Usage example: [examples/](./examples)
+
 ## Installation
 
 ```bash
