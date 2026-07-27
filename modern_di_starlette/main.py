@@ -67,7 +67,12 @@ class _DIMiddleware:
             context=match.context if match else None,
         ) as child_container:
             scope[_CONTAINER_SCOPE_KEY] = child_container
-            await self.app(scope, receive, send)
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                # The container's context holds the connection, which owns this scope — leaving the
+                # entry behind closes a cycle, so the request could only be reclaimed by the GC.
+                del scope[_CONTAINER_SCOPE_KEY]
 
 
 def setup_di(app: Starlette, container: Container) -> Container:

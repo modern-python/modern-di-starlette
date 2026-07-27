@@ -48,7 +48,12 @@ breaks `contextvars` propagation). For each `http` / `websocket` connection it:
    container that is already open, so entering it is a no-op; the middleware
    stashes it in the ASGI `scope` dict under the internal
    `_CONTAINER_SCOPE_KEY` for the duration of the block.
-4. Exiting the block closes the child container (`close_async`), including on
-   the exception path.
+4. Exiting the block closes the child container (`close_async`) **and deletes
+   the `_CONTAINER_SCOPE_KEY` entry**, both on the exception path too. The
+   deletion is load-bearing, not tidiness: the container's context holds the
+   connection and the connection owns this same `scope` dict, so an entry left
+   behind closes a `container → context → connection → scope → container` cycle
+   and the whole request graph becomes reclaimable only by the garbage
+   collector. Nothing may read the entry after the block exits.
 
 Other scope types (`lifespan`) pass straight through untouched.
