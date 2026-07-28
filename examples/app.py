@@ -40,5 +40,6 @@ async def greet(
 
 
 app = Starlette(routes=[Route("/greet/{name}", greet)])
-container = Container(groups=[Dependencies], validate=True)
+container = Container(groups=[Dependencies])
 setup_di(app, container)
+container.validate()  # optional fail-fast; must come after setup_di registers its providers
