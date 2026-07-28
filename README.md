@@ -69,8 +69,9 @@ async def homepage(
 
 
 app = Starlette(routes=[Route("/", homepage)])
-container = Container(groups=[Dependencies], validate=True)
+container = Container(groups=[Dependencies])
 setup_di(app, container)
+container.validate()  # optional fail-fast; must come after setup_di registers its providers
 ```
 
 An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection opens a `Scope.SESSION` one, both built by the middleware before your handler runs. The connection `starlette.requests.Request` / `starlette.websockets.WebSocket` are resolvable within DI via the pre-built `starlette_request_provider` / `starlette_websocket_provider` context providers.
