@@ -26,9 +26,17 @@ def test_middleware_opens_request_scoped_child(client: TestClient, app: Starlett
 
 
 def test_finished_request_leaves_no_cyclic_garbage(client: TestClient, app: Starlette) -> None:
-    # The container's context holds the Request, the Request owns the ASGI scope, and the scope
-    # held the container — a cycle per request, so nothing could be reclaimed by refcounting.
-    # Bare Starlette produces no cyclic garbage, so anything counted here is ours.
+    """INVARIANT: a completed connection leaves no reference cycle behind.
+
+    Broken by anything that lets the child container stay reachable from the ASGI scope past the
+    middleware's ``async with`` -- skipping the ``del`` on some path, stashing the container on the
+    connection or on an object the context holds, or handing the scope entry out for a caller to
+    keep. The container's context holds the connection and the connection owns the scope dict, so
+    one surviving reference closes ``container -> context -> connection -> scope -> container`` and
+    the whole request graph drops out of refcounting into the collector. Bare Starlette produces no
+    cyclic garbage, so anything counted here is ours; deleting the entry took it from 34 objects per
+    request to zero, and it is the only reason the number is zero.
+    """
     seen_scopes: list[ASGIScope] = []
 
     def endpoint(request: Request) -> PlainTextResponse:

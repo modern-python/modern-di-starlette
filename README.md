@@ -74,7 +74,9 @@ setup_di(app, container)
 container.validate()  # optional fail-fast; must come after setup_di registers its providers
 ```
 
-An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection opens a `Scope.SESSION` one, both built by the middleware before your handler runs. The connection `starlette.requests.Request` / `starlette.websockets.WebSocket` are resolvable within DI via the pre-built `starlette_request_provider` / `starlette_websocket_provider` context providers.
+Call `setup_di` once, after creating the app and before it starts serving — it installs middleware, and Starlette does not allow middleware to be added after startup.
+
+An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection opens a `Scope.SESSION` one, both built by the middleware before your handler runs. The connection `starlette.requests.Request` / `starlette.websockets.WebSocket` are resolvable within DI via the pre-built `starlette_request_provider` / `starlette_websocket_provider` context providers. The instance a provider receives is backed by the same ASGI scope as your handler's connection but is a distinct object: read `method` / `url` / `headers` / `state` from it, not the request body.
 
 ## API
 
