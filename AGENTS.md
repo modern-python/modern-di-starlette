@@ -22,7 +22,7 @@ All implementation is `modern_di_starlette/main.py`, short enough to read whole.
 read will not tell you: `modern-di-fastapi` is the closest sibling and FastAPI is built on Starlette,
 so its shapes look transferable — but it exposes the child container through a yield dependency
 rather than the ASGI scope, and the two packages diverge exactly there. Do not port a decision
-across without checking it against [`docs/adr/`](docs/adr/).
+across without checking it.
 
 ### Testing patterns
 
