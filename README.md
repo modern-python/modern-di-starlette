@@ -21,7 +21,7 @@
 
 Full guide: [Starlette integration docs](https://modern-di.modern-python.org/integrations/starlette/)
 
-Usage example: [examples/](./examples)
+Usage example: [examples/](https://github.com/modern-python/modern-di-starlette/tree/main/examples)
 
 ## Installation
 
@@ -91,7 +91,7 @@ An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection 
 
 ## 📦 [PyPI](https://pypi.org/project/modern-di-starlette)
 
-## 📝 [License](LICENSE)
+## 📝 [License](https://github.com/modern-python/modern-di-starlette/blob/main/LICENSE)
 
 ## Part of `modern-python`
 
