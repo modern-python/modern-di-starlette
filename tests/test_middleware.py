@@ -29,7 +29,7 @@ def test_middleware_opens_request_scoped_child(client: TestClient, app: Starlett
 
 @pytest.mark.skipif(
     not getattr(sys, "_is_gil_enabled", lambda: True)(),
-    reason="free-threaded builds defer cross-thread refcount releases to the collector: bare Starlette is not at zero",
+    reason="refcount-only reclamation is a GIL-build property; see the docstring",
 )
 def test_finished_request_leaves_no_cyclic_garbage(client: TestClient, app: Starlette) -> None:
     """INVARIANT: a completed connection leaves no reference cycle behind.
@@ -39,9 +39,13 @@ def test_finished_request_leaves_no_cyclic_garbage(client: TestClient, app: Star
     connection or on an object the context holds, or handing the scope entry out for a caller to
     keep. The container's context holds the connection and the connection owns the scope dict, so
     one surviving reference closes ``container -> context -> connection -> scope -> container`` and
-    the whole request graph drops out of refcounting into the collector. Bare Starlette produces no
-    cyclic garbage, so anything counted here is ours; deleting the entry took it from 34 objects per
-    request to zero, and it is the only reason the number is zero.
+    the whole request graph drops out of refcounting into the collector. On a GIL build bare Starlette
+    produces no cyclic garbage, so anything counted here is ours; deleting the entry took it from 34
+    objects per request to zero, and it is the only reason the number is zero.
+
+    Skipped on the free-threaded build: ``TestClient`` runs the app on a worker thread, and that build
+    defers cross-thread refcount releases to the collector, so bare Starlette alone leaves 16 objects
+    after 20 requests. ``gc.collect() == 0`` cannot separate ours from the interpreter's there.
     """
     seen_scopes: list[ASGIScope] = []
 
