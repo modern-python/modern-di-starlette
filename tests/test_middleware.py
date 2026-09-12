@@ -1,5 +1,7 @@
 import gc
+import sys
 
+import pytest
 from modern_di import Container, Scope
 from starlette import status
 from starlette.applications import Starlette
@@ -25,6 +27,10 @@ def test_middleware_opens_request_scoped_child(client: TestClient, app: Starlett
     assert client.get("/").status_code == status.HTTP_200_OK
 
 
+@pytest.mark.skipif(
+    not getattr(sys, "_is_gil_enabled", lambda: True)(),
+    reason="free-threaded builds defer cross-thread refcount releases to the collector: bare Starlette is not at zero",
+)
 def test_finished_request_leaves_no_cyclic_garbage(client: TestClient, app: Starlette) -> None:
     """INVARIANT: a completed connection leaves no reference cycle behind.
 
