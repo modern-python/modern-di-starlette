@@ -20,11 +20,11 @@ version of the accessor that is both safe and useful, because the lifetime it ex
 shorter than the object a caller would want to attach it to. The bound is the point: nothing may
 read the entry after the middleware's `async with` block exits.
 
-The one real gap this leaves is class-based `HTTPEndpoint` / `WebSocketEndpoint`, which `@inject`
-does not cover. That is a missing decorator path, not a missing accessor, and is tracked as its own
-work.
+Class-based `HTTPEndpoint` / `WebSocketEndpoint` were once a gap here: `@inject` did not bind as a
+method, and with the scope key private there was no manual fallback. That was a missing decorator
+path, not a missing accessor, and `@inject` now covers a method the same way it covers a function
+(`docs/adr/0003-inject-forwards-arguments-unchanged.md`).
 
 **Revisit trigger:** a use for the child container appears that `@inject` genuinely cannot serve —
-not a class-based endpoint, which wants its own injection path, but something outside the
-connection's own call stack. At that point the lifetime question above has to be answered first, and
-the answer is what the accessor's contract would be.
+something outside the connection's own call stack. At that point the lifetime question above has to
+be answered first, and the answer is what the accessor's contract would be.
