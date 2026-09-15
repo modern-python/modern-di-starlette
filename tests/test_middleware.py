@@ -1,11 +1,14 @@
 import gc
 import sys
 
+import pytest
 from modern_di import Container, Scope
 from starlette import status
 from starlette.applications import Starlette
+from starlette.endpoints import HTTPEndpoint
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
+from starlette.routing import Route
 from starlette.testclient import TestClient
 from starlette.types import Scope as ASGIScope
 
@@ -26,7 +29,8 @@ def test_middleware_opens_request_scoped_child(client: TestClient, app: Starlett
     assert client.get("/").status_code == status.HTTP_200_OK
 
 
-def test_finished_request_leaves_no_cyclic_garbage(client: TestClient, app: Starlette) -> None:
+@pytest.mark.parametrize("class_based", [False, True], ids=["function", "HTTPEndpoint"])
+def test_finished_request_leaves_no_cyclic_garbage(client: TestClient, app: Starlette, class_based: bool) -> None:
     """INVARIANT: a completed connection leaves no reference cycle behind.
 
     Broken by anything that lets the child container stay reachable from the ASGI scope past the
@@ -52,7 +56,11 @@ def test_finished_request_leaves_no_cyclic_garbage(client: TestClient, app: Star
         last_scope[:] = [request.scope]
         return PlainTextResponse("ok")
 
-    app.add_route("/", endpoint)
+    class Endpoint(HTTPEndpoint):
+        async def get(self, request: Request) -> PlainTextResponse:
+            return endpoint(request)
+
+    app.router.routes.append(Route("/", Endpoint if class_based else endpoint))
     for _ in range(5):  # let one-time allocations settle before measuring
         client.get("/")
 

@@ -76,6 +76,40 @@ container.validate()  # optional fail-fast; must come after setup_di registers i
 
 Call `setup_di` once, after creating the app and before it starts serving — it installs middleware, and Starlette does not allow middleware to be added after startup.
 
+`@inject` works the same on the methods of a class-based endpoint. Decorate the handler method, not the class; `self` and any arguments Starlette passes after the connection are forwarded unchanged, so `WebSocketEndpoint.on_receive` and `on_disconnect` inject too:
+
+```python
+from starlette.endpoints import HTTPEndpoint, WebSocketEndpoint
+from starlette.routing import Route, WebSocketRoute
+from starlette.websockets import WebSocket
+
+
+class Users(HTTPEndpoint):
+    @inject
+    async def get(
+        self,
+        request: Request,
+        service: typing.Annotated[UserService, FromDI(Dependencies.user_service)],
+    ) -> JSONResponse:
+        return JSONResponse({"debug": service.settings.debug})
+
+
+class Echo(WebSocketEndpoint):
+    encoding = "text"
+
+    @inject
+    async def on_receive(
+        self,
+        websocket: WebSocket,
+        data: str,
+        service: typing.Annotated[UserService, FromDI(Dependencies.user_service)],
+    ) -> None:
+        await websocket.send_text(data)
+
+
+app = Starlette(routes=[Route("/users", Users), WebSocketRoute("/echo", Echo)])
+```
+
 An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection opens a `Scope.SESSION` one, both built by the middleware before your handler runs. The connection `starlette.requests.Request` / `starlette.websockets.WebSocket` are resolvable within DI via the pre-built `starlette_request_provider` / `starlette_websocket_provider` context providers. The instance a provider receives is backed by the same ASGI scope as your handler's connection but is a distinct object: read `method` / `url` / `headers` / `state` from it, not the request body.
 
 ## API
@@ -84,7 +118,7 @@ An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection 
 |---|---|
 | `setup_di(app, container)` | Registers the container on `app.state`, composes the lifespan (opens/closes the container), and installs the middleware that builds a per-connection child container; returns the container |
 | `FromDI(dependency)` | Inert marker (used with `@inject`) that resolves a provider or type from the per-connection child container |
-| `inject(handler)` | Decorator for an `async def` handler taking a `Request` or `WebSocket`; resolves its `FromDI`-annotated parameters |
+| `inject(handler)` | Decorator for an `async def` handler taking a `Request` or `WebSocket`, either a function endpoint or a method of an `HTTPEndpoint` / `WebSocketEndpoint` subclass; resolves its `FromDI`-annotated parameters |
 | `fetch_di_container(app)` | Returns the root `Container` stored on `app.state` |
 | `starlette_request_provider` | `ContextProvider` for `starlette.requests.Request` (`REQUEST` scope), auto-registered |
 | `starlette_websocket_provider` | `ContextProvider` for `starlette.websockets.WebSocket` (`SESSION` scope), auto-registered |

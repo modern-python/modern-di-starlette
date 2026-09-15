@@ -86,11 +86,21 @@ def setup_di(app: Starlette, container: Container) -> Container:
 FromDI = integrations.from_di
 
 
+def _find_connection(handler_name: str, args: tuple[typing.Any, ...]) -> Request | WebSocket:
+    for arg in args:
+        if isinstance(arg, Request | WebSocket):
+            return arg
+    msg = f"@inject requires {handler_name} to receive a Request or WebSocket as a positional argument."
+    raise TypeError(msg)
+
+
 def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[..., typing.Awaitable[T]]:
     markers = integrations.parse_markers(func)
+    handler_name = getattr(func, "__qualname__", repr(func))
 
     @functools.wraps(func)
-    async def wrapper(connection: Request | WebSocket) -> T:
+    async def wrapper(*args: typing.Any, **kwargs: typing.Any) -> T:  # noqa: ANN401
+        connection = _find_connection(handler_name, args)
         try:
             child_container: Container = connection.scope[_CONTAINER_SCOPE_KEY]
         except KeyError:
@@ -100,6 +110,6 @@ def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[.
                 "before using @inject."
             )
             raise RuntimeError(msg) from None
-        return await func(connection, **integrations.resolve_markers(child_container, markers))
+        return await func(*args, **kwargs, **integrations.resolve_markers(child_container, markers))
 
     return wrapper
