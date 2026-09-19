@@ -23,7 +23,6 @@ starlette_websocket_provider = providers.ContextProvider(scope=Scope.SESSION, co
 _CONNECTION_PROVIDERS = (starlette_request_provider, starlette_websocket_provider)
 
 # Key under which the per-connection child container lives in the ASGI scope dict.
-# `_DIMiddleware` writes it; `inject` (Task 3) reads it back.
 _CONTAINER_SCOPE_KEY = "modern_di_container"
 
 
