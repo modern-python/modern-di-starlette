@@ -74,7 +74,7 @@ setup_di(app, container)
 container.validate()  # optional fail-fast; must come after setup_di registers its providers
 ```
 
-Call `setup_di` once, after creating the app and before it starts serving — it installs middleware, and Starlette does not allow middleware to be added after startup.
+Call `setup_di` once, after creating the app and before it starts serving. It installs middleware, and Starlette does not allow middleware to be added after startup.
 
 `@inject` works the same on the methods of a class-based endpoint. Decorate the handler method, not the class; `self` and any arguments Starlette passes after the connection are forwarded unchanged, so `WebSocketEndpoint.on_receive` and `on_disconnect` inject too:
 
@@ -102,15 +102,15 @@ class Echo(WebSocketEndpoint):
         self,
         websocket: WebSocket,
         data: str,
-        service: typing.Annotated[UserService, FromDI(Dependencies.user_service)],
+        settings: typing.Annotated[Settings, FromDI(Dependencies.settings)],
     ) -> None:
-        await websocket.send_text(data)
+        await websocket.send_text(f"{data} debug={settings.debug}")
 
 
 app = Starlette(routes=[Route("/users", Users), WebSocketRoute("/echo", Echo)])
 ```
 
-An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection opens a `Scope.SESSION` one, both built by the middleware before your handler runs. The connection `starlette.requests.Request` / `starlette.websockets.WebSocket` are resolvable within DI via the pre-built `starlette_request_provider` / `starlette_websocket_provider` context providers. The instance a provider receives is backed by the same ASGI scope as your handler's connection but is a distinct object: read `method` / `url` / `headers` / `state` from it, not the request body.
+An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection opens a `Scope.SESSION` one, both built by the middleware before your handler runs. A WebSocket handler can therefore inject `APP`- and `SESSION`-scoped dependencies but not `REQUEST`-scoped ones. The connection `starlette.requests.Request` / `starlette.websockets.WebSocket` are resolvable within DI via the pre-built `starlette_request_provider` / `starlette_websocket_provider` context providers. The instance a provider receives is backed by the same ASGI scope as your handler's connection but is a distinct object: read `method` / `url` / `headers` / `state` from it, not the request body.
 
 ## API
 
@@ -129,7 +129,7 @@ An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection 
 
 ## Part of `modern-python`
 
-Built on [`modern-di`](https://github.com/modern-python/modern-di), a dependency-injection framework with IoC container and scopes.
+Built on [`modern-di`](https://github.com/modern-python/modern-di), a dependency-injection framework with an IoC container and scopes.
 
 Browse the full list of templates and libraries in
-[`modern-python`](https://github.com/modern-python) — see the org profile for the categorized index.
+[`modern-python`](https://github.com/modern-python); the org profile has the categorized index.
