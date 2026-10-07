@@ -1,5 +1,5 @@
+import collections.abc
 import contextlib
-import typing
 
 import modern_di
 from starlette import status
@@ -33,7 +33,7 @@ def test_setup_di_composes_with_existing_lifespan() -> None:
     events: list[str] = []
 
     @contextlib.asynccontextmanager
-    async def user_lifespan(app_: Starlette) -> typing.AsyncIterator[dict[str, str]]:
+    async def user_lifespan(app_: Starlette) -> collections.abc.AsyncGenerator[dict[str, str]]:
         assert isinstance(app_, Starlette)
         events.append("startup")
         yield {"marker": "from-user-lifespan"}

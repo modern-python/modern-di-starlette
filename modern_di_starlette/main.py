@@ -1,5 +1,6 @@
 """modern-di integration for Starlette."""
 
+import collections.abc
 import contextlib
 import functools
 import typing
@@ -40,7 +41,7 @@ def _compose_lifespan(original: Lifespan[Starlette]) -> Lifespan[Starlette]:
     """
 
     @contextlib.asynccontextmanager
-    async def composed(app: Starlette) -> typing.AsyncIterator[typing.Mapping[str, typing.Any] | None]:
+    async def composed(app: Starlette) -> collections.abc.AsyncGenerator[typing.Mapping[str, typing.Any] | None]:
         async with original(app) as state, fetch_di_container(app):
             yield state
 
