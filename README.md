@@ -116,7 +116,7 @@ An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection 
 
 A Starlette app mounted under another with `Mount` can call `setup_di` with its own container. A route inside the mounted app then resolves from the mounted app's container, and routes outside it resolve from the outer one. Both middlewares open a child container for the connection and both close it when the connection ends. If only the outer app calls `setup_di`, routes in the mounted app resolve from the outer container.
 
-Starlette runs only the outermost app's lifespan, so the outer app's lifespan also opens and closes the root container of every mounted app that called `setup_di`, including apps under `Host` routes and apps mounted more than one level deep. It looks for them at startup, so mounts added after `setup_di` are included. Each container is opened once and closed at shutdown, after your lifespan code. The mounted app's own lifespan function still does not run.
+Starlette runs only the outermost app's lifespan, so the outer app's lifespan also opens and closes the root container of every mounted app that called `setup_di`, including apps under `Host` routes, apps mounted with `Mount(..., middleware=[...])`, and apps mounted more than one level deep. It looks for them at startup, so mounts added after `setup_di` are included. Each container is opened once and closed at shutdown, after your lifespan code. The mounted app's own lifespan function still does not run.
 
 ## API
 
