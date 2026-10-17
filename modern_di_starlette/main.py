@@ -28,10 +28,20 @@ _CONNECTION_PROVIDERS = (starlette_request_provider, starlette_websocket_provide
 # Key under which the per-connection child container lives in the ASGI scope dict.
 _CONTAINER_SCOPE_KEY = "modern_di_container"
 _MISSING = object()
+_MANAGE_LIFESPAN_KEY = "di_manage_lifespan"
 
 
 def fetch_di_container(app: Starlette) -> Container:
     return typing.cast(Container, app.state.di_container)
+
+
+def _managed_containers(app: Starlette) -> collections.abc.Iterator[Container]:
+    try:
+        container = fetch_di_container(app)
+    except AttributeError:
+        return
+    if getattr(app.state, _MANAGE_LIFESPAN_KEY, True):
+        yield container
 
 
 def _mounted_containers(routes: collections.abc.Iterable[BaseRoute]) -> collections.abc.Iterator[Container]:
@@ -41,12 +51,7 @@ def _mounted_containers(routes: collections.abc.Iterable[BaseRoute]) -> collecti
         # Mount(middleware=...) wraps route.app; Starlette keeps the unwrapped app on the private _base_app.
         app = getattr(route, "_base_app", route.app)
         if isinstance(app, Starlette):
-            try:
-                container = fetch_di_container(app)
-            except AttributeError:
-                pass
-            else:
-                yield container
+            yield from _managed_containers(app)
         yield from _mounted_containers(route.routes)
 
 
@@ -60,14 +65,16 @@ def _compose_lifespan(original: Lifespan[Starlette]) -> Lifespan[Starlette]:
 
     Starlette runs only the outermost app's lifespan, so the root containers of
     mounted apps that called ``setup_di`` are opened and closed here too. The
-    routes are walked at startup, and each container is entered once.
+    routes are walked at startup, and each container is entered once. An app
+    whose ``setup_di`` got ``manage_lifespan=False`` is skipped, its own root
+    included.
     """
 
     @contextlib.asynccontextmanager
     async def composed(app: Starlette) -> collections.abc.AsyncGenerator[typing.Mapping[str, typing.Any] | None]:
         async with original(app) as state, contextlib.AsyncExitStack() as stack:
             entered: list[Container] = []
-            for container in (fetch_di_container(app), *_mounted_containers(app.routes)):
+            for container in (*_managed_containers(app), *_mounted_containers(app.routes)):
                 if not any(container is seen for seen in entered):
                     entered.append(container)
                     await stack.enter_async_context(container)
@@ -107,8 +114,9 @@ class _DIMiddleware:
                     scope[_CONTAINER_SCOPE_KEY] = previous
 
 
-def setup_di(app: Starlette, container: Container) -> Container:
+def setup_di(app: Starlette, container: Container, *, manage_lifespan: bool = True) -> Container:
     app.state.di_container = container
+    setattr(app.state, _MANAGE_LIFESPAN_KEY, manage_lifespan)
     container.add_providers(*_CONNECTION_PROVIDERS)
     app.router.lifespan_context = _compose_lifespan(app.router.lifespan_context)
     app.add_middleware(_DIMiddleware, container=container)

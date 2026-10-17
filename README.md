@@ -116,13 +116,28 @@ An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection 
 
 A Starlette app mounted under another with `Mount` can call `setup_di` with its own container. A route inside the mounted app then resolves from the mounted app's container, and routes outside it resolve from the outer one. Both middlewares open a child container for the connection and both close it when the connection ends. If only the outer app calls `setup_di`, routes in the mounted app resolve from the outer container.
 
-Starlette runs only the outermost app's lifespan, so the outer app's lifespan also opens and closes the root container of every mounted app that called `setup_di`, including apps under `Host` routes, apps mounted with `Mount(..., middleware=[...])`, and apps mounted more than one level deep. It looks for them at startup, so mounts added after `setup_di` are included. Each container is opened once and closed at shutdown, after your lifespan code. The mounted app's own lifespan function still does not run.
+Starlette runs only the outermost app's lifespan, so the outer app's lifespan also opens and closes the root container of every mounted app that called `setup_di`, including apps under `Host` routes, apps mounted with `Mount(..., middleware=[...])`, and apps mounted more than one level deep. It looks for them at startup, so mounts added after `setup_di` are included. Each container is opened once and closed at shutdown, after your lifespan code. The mounted app's own lifespan function still does not run. A mounted app whose `setup_di` was called with `manage_lifespan=False` is skipped.
+
+### Sharing a container
+
+By default the lifespan opens the root container at startup and closes it at shutdown, which runs its `APP`-scoped finalizers. To share one container between this app and something else that outlives it, such as a second app or a worker, pass `manage_lifespan=False` and open and close the container yourself:
+
+```python
+setup_di(app, container, manage_lifespan=False)
+
+
+async def main() -> None:
+    async with container:
+        ...  # run the app and anything else that uses the container
+```
+
+The middleware still opens and closes a child container for every connection. The flag covers only this app's root container: the lifespan still opens and closes the containers of mounted apps that kept the default.
 
 ## API
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Registers the container on `app.state`, composes the lifespan (opens/closes the container), and installs the middleware that builds a per-connection child container; returns the container |
+| `setup_di(app, container, *, manage_lifespan=True)` | Registers the container on `app.state`, composes the lifespan (opens/closes the container unless `manage_lifespan=False`), and installs the middleware that builds a per-connection child container; returns the container |
 | `FromDI(dependency)` | Inert marker (used with `@inject`) that resolves a provider or type from the per-connection child container |
 | `inject(handler)` | Decorator for a sync or `async def` handler taking a `Request` or `WebSocket`, either a function endpoint or a method of an `HTTPEndpoint` / `WebSocketEndpoint` subclass; resolves its `FromDI`-annotated parameters |
 | `fetch_di_container(app)` | Returns the root `Container` stored on `app.state` |
