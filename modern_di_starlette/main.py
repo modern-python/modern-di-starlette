@@ -88,9 +88,9 @@ def _compose_lifespan(original: Lifespan[Starlette]) -> Lifespan[Starlette]:
 
 
 class _DIMiddleware:
-    def __init__(self, app: ASGIApp, container: Container) -> None:
+    def __init__(self, app: ASGIApp, di_app: Starlette) -> None:
         self.app = app
-        self.container = container
+        self.di_app = di_app
 
     async def __call__(self, scope: ASGIScope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http", "websocket"):
@@ -101,7 +101,7 @@ class _DIMiddleware:
             Request(scope, receive) if scope["type"] == "http" else WebSocket(scope, receive, send)
         )
         match = integrations.classify_connection(connection, _CONNECTION_PROVIDERS)
-        async with self.container.build_child_container(
+        async with fetch_di_container(self.di_app).build_child_container(
             scope=match.scope if match else None,
             context=match.context if match else None,
         ) as child_container:
@@ -123,7 +123,8 @@ def setup_di(app: Starlette, container: Container, *, manage_lifespan: bool = Tr
     setattr(app.state, _MANAGE_LIFESPAN_KEY, manage_lifespan)
     container.add_providers(*_CONNECTION_PROVIDERS)
     app.router.lifespan_context = _compose_lifespan(app.router.lifespan_context)
-    app.add_middleware(_DIMiddleware, container=container)
+    if not any(middleware.cls is _DIMiddleware for middleware in app.user_middleware):
+        app.add_middleware(_DIMiddleware, di_app=app)
     return container
 
 
