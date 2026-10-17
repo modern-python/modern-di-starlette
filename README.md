@@ -144,9 +144,10 @@ The middleware still opens and closes a child container for every connection. Th
 | `starlette_request_provider` | `ContextProvider` for `starlette.requests.Request` (`REQUEST` scope), auto-registered |
 | `starlette_websocket_provider` | `ContextProvider` for `starlette.websockets.WebSocket` (`SESSION` scope), auto-registered |
 
-## 📦 [PyPI](https://pypi.org/project/modern-di-starlette)
+## Links
 
-## 📝 [License](https://github.com/modern-python/modern-di-starlette/blob/main/LICENSE)
+- [PyPI](https://pypi.org/project/modern-di-starlette)
+- [License](https://github.com/modern-python/modern-di-starlette/blob/main/LICENSE)
 
 ## Part of `modern-python`
 
