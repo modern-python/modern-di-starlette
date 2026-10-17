@@ -6,28 +6,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `modern-di-starlette` is the [`modern-di`](https://github.com/modern-python/modern-di) integration
 for [Starlette](https://www.starlette.io); [`CONTEXT.md`](CONTEXT.md) opens with what it does and
-owns the vocabulary — read it before naming a concept in code, a test name, or an issue title. It is
+owns the vocabulary. Read it before naming a concept in code, a test name, or an issue title. It is
 one of that project's integrations, each of which lives in a separate repository and ships as a
 separate PyPI package.
 
 ## Commands
 
-`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth —
+`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth:
 `just --list`, or read it.
 
 ## Architecture
 
 All implementation is `modern_di_starlette/main.py`, short enough to read whole. Read it. What that
 read will not tell you: `modern-di-fastapi` is the closest sibling and FastAPI is built on Starlette,
-so its shapes look transferable — but it exposes the child container through a yield dependency
-rather than the ASGI scope, and the two packages diverge exactly there. Do not port a decision
+so its shapes look transferable. But it exposes the child container through a yield dependency
+where this package uses the ASGI scope, and the two packages diverge exactly there. Do not port a decision
 across without checking it.
 
 ### Testing patterns
 
 `tests/dependencies.py` is the fixture model every test builds on: one `Group` spanning APP,
-SESSION and REQUEST, including providers whose creators take the `Request` / `WebSocket` so context
-injection is exercised rather than assumed.
+SESSION and REQUEST, including providers whose creators take the `Request` / `WebSocket` so the tests
+exercise context injection.
 
 ## Workflow
 
