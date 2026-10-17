@@ -9,6 +9,7 @@ import typing
 from modern_di import Container, Scope, integrations, providers
 from starlette.applications import Starlette
 from starlette.requests import Request
+from starlette.routing import BaseRoute, Host, Mount
 from starlette.types import ASGIApp, Lifespan, Receive, Send
 from starlette.types import Scope as ASGIScope
 from starlette.websockets import WebSocket
@@ -33,6 +34,20 @@ def fetch_di_container(app: Starlette) -> Container:
     return typing.cast(Container, app.state.di_container)
 
 
+def _mounted_containers(routes: collections.abc.Iterable[BaseRoute]) -> collections.abc.Iterator[Container]:
+    for route in routes:
+        if not isinstance(route, Mount | Host):
+            continue
+        if isinstance(route.app, Starlette):
+            try:
+                container = fetch_di_container(route.app)
+            except AttributeError:
+                pass
+            else:
+                yield container
+        yield from _mounted_containers(route.routes)
+
+
 def _compose_lifespan(original: Lifespan[Starlette]) -> Lifespan[Starlette]:
     """Wrap ``original`` so the root container opens/closes around it.
 
@@ -40,11 +55,20 @@ def _compose_lifespan(original: Lifespan[Starlette]) -> Lifespan[Starlette]:
     shutdown, so a second lifespan cycle against the same container works
     instead of raising ``ContainerClosedError``. The original lifespan stays
     the outer context and its yielded state passes straight through.
+
+    Starlette runs only the outermost app's lifespan, so the root containers of
+    mounted apps that called ``setup_di`` are opened and closed here too. The
+    routes are walked at startup, and each container is entered once.
     """
 
     @contextlib.asynccontextmanager
     async def composed(app: Starlette) -> collections.abc.AsyncGenerator[typing.Mapping[str, typing.Any] | None]:
-        async with original(app) as state, fetch_di_container(app):
+        async with original(app) as state, contextlib.AsyncExitStack() as stack:
+            entered: list[Container] = []
+            for container in (fetch_di_container(app), *_mounted_containers(app.routes)):
+                if not any(container is seen for seen in entered):
+                    entered.append(container)
+                    await stack.enter_async_context(container)
             yield state
 
     return typing.cast(Lifespan[Starlette], composed)
