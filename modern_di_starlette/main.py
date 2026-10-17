@@ -60,8 +60,11 @@ def _compose_lifespan(original: Lifespan[Starlette]) -> Lifespan[Starlette]:
 
     ``async with`` reopens the container on each startup and closes it on
     shutdown, so a second lifespan cycle against the same container works
-    instead of raising ``ContainerClosedError``. The original lifespan stays
-    the outer context and its yielded state passes straight through.
+    instead of raising ``ContainerClosedError``. The containers are the outer
+    context: they open before the original lifespan's startup code and close
+    after its shutdown code, so that code can resolve ``APP`` dependencies and
+    their finalizers run last. The original lifespan's yielded state passes
+    straight through.
 
     Starlette runs only the outermost app's lifespan, so the root containers of
     mounted apps that called ``setup_di`` are opened and closed here too. The
@@ -72,13 +75,14 @@ def _compose_lifespan(original: Lifespan[Starlette]) -> Lifespan[Starlette]:
 
     @contextlib.asynccontextmanager
     async def composed(app: Starlette) -> collections.abc.AsyncGenerator[typing.Mapping[str, typing.Any] | None]:
-        async with original(app) as state, contextlib.AsyncExitStack() as stack:
+        async with contextlib.AsyncExitStack() as stack:
             entered: list[Container] = []
             for container in (*_managed_containers(app), *_mounted_containers(app.routes)):
                 if not any(container is seen for seen in entered):
                     entered.append(container)
                     await stack.enter_async_context(container)
-            yield state
+            async with original(app) as state:
+                yield state
 
     return typing.cast(Lifespan[Starlette], composed)
 

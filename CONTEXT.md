@@ -18,7 +18,9 @@ dict. The three below are this package's own.
 **Root container**:
 The application-lifetime container handed to `setup_di` and stored on `app.state.di_container`.
 Every sentence in this repo that says "container" without qualifying it is wrong: there are always
-two, and this is the one a user constructs.
+two, and this is the one a user constructs. The lifespan `setup_di` composes opens it before the
+user's lifespan startup code and closes it after the user's shutdown code, together with the root
+containers of mounted apps; with `manage_lifespan=False` the user opens and closes it instead.
 
 **Child container**:
 The container the middleware opens for one connection and closes when it ends. Which scope it opens
