@@ -26,6 +26,7 @@ _CONNECTION_PROVIDERS = (starlette_request_provider, starlette_websocket_provide
 
 # Key under which the per-connection child container lives in the ASGI scope dict.
 _CONTAINER_SCOPE_KEY = "modern_di_container"
+_MISSING = object()
 
 
 def fetch_di_container(app: Starlette) -> Container:
@@ -67,13 +68,17 @@ class _DIMiddleware:
             scope=match.scope if match else None,
             context=match.context if match else None,
         ) as child_container:
+            previous = scope.get(_CONTAINER_SCOPE_KEY, _MISSING)
             scope[_CONTAINER_SCOPE_KEY] = child_container
             try:
                 await self.app(scope, receive, send)
             finally:
                 # The container's context holds the connection, which owns this scope — leaving the
                 # entry behind closes a cycle, so the request could only be reclaimed by the GC.
-                del scope[_CONTAINER_SCOPE_KEY]
+                if previous is _MISSING:
+                    del scope[_CONTAINER_SCOPE_KEY]
+                else:
+                    scope[_CONTAINER_SCOPE_KEY] = previous
 
 
 def setup_di(app: Starlette, container: Container) -> Container:

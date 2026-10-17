@@ -114,6 +114,8 @@ app = Starlette(routes=[Route("/users", Users), WebSocketRoute("/echo", Echo)])
 
 An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection opens a `Scope.SESSION` one, both built by the middleware before your handler runs. A WebSocket handler can therefore inject `APP`- and `SESSION`-scoped dependencies but not `REQUEST`-scoped ones. The connection `starlette.requests.Request` / `starlette.websockets.WebSocket` are resolvable within DI via the pre-built `starlette_request_provider` / `starlette_websocket_provider` context providers. The instance a provider receives is backed by the same ASGI scope as your handler's connection but is a distinct object: read `method` / `url` / `headers` / `state` from it, not the request body.
 
+A Starlette app mounted under another with `Mount` can call `setup_di` with its own container. A route inside the mounted app then resolves from the mounted app's container, and routes outside it resolve from the outer one. Both middlewares open a child container for the connection and both close it when the connection ends. If only the outer app calls `setup_di`, routes in the mounted app resolve from the outer container.
+
 ## API
 
 | Symbol | Description |
