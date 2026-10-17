@@ -76,6 +76,8 @@ container.validate()  # optional fail-fast; must come after setup_di registers i
 
 Call `setup_di` once, after creating the app and before it starts serving. It installs middleware, and Starlette does not allow middleware to be added after startup.
 
+A Starlette app mounted under another with `Mount` can call `setup_di` with its own container. A route inside the mounted app then resolves from the mounted app's container, and routes outside it resolve from the outer one. Both middlewares open a child container for the connection and both close it when the connection ends. If only the outer app calls `setup_di`, routes in the mounted app resolve from the outer container.
+
 `@inject` works the same on the methods of a class-based endpoint. Decorate the handler method, not the class; `self` and any arguments Starlette passes after the connection are forwarded unchanged, so `WebSocketEndpoint.on_receive` and `on_disconnect` inject too:
 
 ```python
