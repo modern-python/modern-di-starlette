@@ -3,6 +3,7 @@
 import collections.abc
 import contextlib
 import functools
+import inspect
 import typing
 
 from modern_di import Container, Scope, integrations, providers
@@ -94,22 +95,36 @@ def _find_connection(handler_name: str, args: tuple[typing.Any, ...]) -> Request
     raise TypeError(msg)
 
 
-def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[..., typing.Awaitable[T]]:
+def _fetch_child_container(connection: Request | WebSocket) -> Container:
+    try:
+        return typing.cast(Container, connection.scope[_CONTAINER_SCOPE_KEY])
+    except KeyError:
+        msg = (
+            "No modern-di container found in the request scope. "
+            "Call setup_di(app, container) so requests pass through the modern-di middleware "
+            "before using @inject."
+        )
+        raise RuntimeError(msg) from None
+
+
+def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
     markers = integrations.parse_markers(func)
     handler_name = getattr(func, "__qualname__", repr(func))
 
+    def resolve(args: tuple[typing.Any, ...]) -> dict[str, typing.Any]:
+        child_container = _fetch_child_container(_find_connection(handler_name, args))
+        return integrations.resolve_markers(child_container, markers)
+
+    if inspect.iscoroutinefunction(func):
+
+        @functools.wraps(func)
+        async def async_wrapper(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:  # noqa: ANN401
+            return await func(*args, **kwargs, **resolve(args))
+
+        return typing.cast(typing.Callable[..., T], async_wrapper)
+
     @functools.wraps(func)
-    async def wrapper(*args: typing.Any, **kwargs: typing.Any) -> T:  # noqa: ANN401
-        connection = _find_connection(handler_name, args)
-        try:
-            child_container: Container = connection.scope[_CONTAINER_SCOPE_KEY]
-        except KeyError:
-            msg = (
-                "No modern-di container found in the request scope. "
-                "Call setup_di(app, container) so requests pass through the modern-di middleware "
-                "before using @inject."
-            )
-            raise RuntimeError(msg) from None
-        return await func(*args, **kwargs, **integrations.resolve_markers(child_container, markers))
+    def wrapper(*args: typing.Any, **kwargs: typing.Any) -> T:  # noqa: ANN401
+        return func(*args, **kwargs, **resolve(args))
 
     return wrapper
