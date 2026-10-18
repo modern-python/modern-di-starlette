@@ -35,7 +35,7 @@ async def test_finished_request_leaves_no_cyclic_garbage(app: Starlette, class_b
     """INVARIANT: a completed connection leaves no reference cycle behind.
 
     Broken by anything that lets the child container stay reachable from the ASGI scope past the
-    middleware's ``async with`` -- skipping the ``del`` on some path, stashing the container on the
+    middleware's close -- skipping the ``del`` on some path, stashing the container on the
     connection or on an object the context holds, or handing the scope entry out for a caller to
     keep. The container's context holds the connection and the connection owns the scope dict, so
     one surviving reference closes ``container -> context -> connection -> scope -> container`` and
