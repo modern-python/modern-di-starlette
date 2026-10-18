@@ -4,8 +4,10 @@ import collections.abc
 import contextlib
 import functools
 import inspect
+import logging
 import typing
 
+import anyio
 from modern_di import Container, Scope, integrations, providers
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -29,6 +31,8 @@ _CONNECTION_PROVIDERS = (starlette_request_provider, starlette_websocket_provide
 _CONTAINER_SCOPE_KEY = "modern_di_container"
 _MISSING = object()
 _MANAGE_LIFESPAN_KEY = "di_manage_lifespan"
+_CHILD_CLOSE_TIMEOUT = 10.0
+_logger = logging.getLogger(__name__)
 
 
 def fetch_di_container(app: Starlette) -> Container:
@@ -87,6 +91,17 @@ def _compose_lifespan(original: Lifespan[Starlette]) -> Lifespan[Starlette]:
     return typing.cast(Lifespan[Starlette], composed)
 
 
+async def _close_child(child_container: Container) -> None:
+    """Close ``child_container`` even inside a cancelled scope, giving up after ``_CHILD_CLOSE_TIMEOUT``."""
+    with anyio.move_on_after(_CHILD_CLOSE_TIMEOUT, shield=True) as close_scope:
+        await child_container.close_async()
+    if close_scope.cancel_called:
+        _logger.warning(
+            "Closing the child container did not finish within %s s; its remaining finalizers did not run",
+            _CHILD_CLOSE_TIMEOUT,
+        )
+
+
 class _DIMiddleware:
     def __init__(self, app: ASGIApp, di_app: Starlette) -> None:
         self.app = app
@@ -101,21 +116,22 @@ class _DIMiddleware:
             Request(scope, receive) if scope["type"] == "http" else WebSocket(scope, receive, send)
         )
         match = integrations.classify_connection(connection, _CONNECTION_PROVIDERS)
-        async with fetch_di_container(self.di_app).build_child_container(
+        child_container = fetch_di_container(self.di_app).build_child_container(
             scope=match.scope if match else None,
             context=match.context if match else None,
-        ) as child_container:
-            previous = scope.get(_CONTAINER_SCOPE_KEY, _MISSING)
-            scope[_CONTAINER_SCOPE_KEY] = child_container
-            try:
-                await self.app(scope, receive, send)
-            finally:
-                # The container's context holds the connection, which owns this scope — leaving the
-                # entry behind closes a cycle, so the request could only be reclaimed by the GC.
-                if previous is _MISSING:
-                    del scope[_CONTAINER_SCOPE_KEY]
-                else:
-                    scope[_CONTAINER_SCOPE_KEY] = previous
+        )
+        previous = scope.get(_CONTAINER_SCOPE_KEY, _MISSING)
+        scope[_CONTAINER_SCOPE_KEY] = child_container
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            # The container's context holds the connection, which owns this scope — leaving the
+            # entry behind closes a cycle, so the request could only be reclaimed by the GC.
+            if previous is _MISSING:
+                del scope[_CONTAINER_SCOPE_KEY]
+            else:
+                scope[_CONTAINER_SCOPE_KEY] = previous
+            await _close_child(child_container)
 
 
 def setup_di(app: Starlette, container: Container, *, manage_lifespan: bool = True) -> Container:
