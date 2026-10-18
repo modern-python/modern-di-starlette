@@ -13,6 +13,7 @@ from starlette.testclient import TestClient
 from starlette.types import Scope as ASGIScope
 
 from modern_di_starlette.main import _CONTAINER_SCOPE_KEY
+from tests import asgi
 from tests.dependencies import Dependencies, DependentCreator
 
 
@@ -30,7 +31,7 @@ def test_middleware_opens_request_scoped_child(client: TestClient, app: Starlett
 
 
 @pytest.mark.parametrize("class_based", [False, True], ids=["function", "HTTPEndpoint"])
-def test_finished_request_leaves_no_cyclic_garbage(client: TestClient, app: Starlette, class_based: bool) -> None:
+async def test_finished_request_leaves_no_cyclic_garbage(app: Starlette, class_based: bool) -> None:
     """INVARIANT: a completed connection leaves no reference cycle behind.
 
     Broken by anything that lets the child container stay reachable from the ASGI scope past the
@@ -43,11 +44,11 @@ def test_finished_request_leaves_no_cyclic_garbage(client: TestClient, app: Star
     produces no cyclic garbage, so the collector must find nothing at all; deleting the entry took it
     from 34 objects per request to zero, and it is the only reason the number is zero.
 
-    The free-threaded build cannot promise zero: ``TestClient`` runs the app on a worker thread, and
-    that build defers cross-thread refcount releases to the collector, so bare Starlette alone hands
-    it the last response's objects. There the check is that nothing the collector reclaims is ours --
-    no container and no scope dict still carrying the entry -- which is what a surviving cycle would
-    put in front of it.
+    Requests go straight to the app, because ``TestClient`` leaves cycles of its own: since Starlette
+    1.9, every streamed response body ends in an ``EndOfStream`` cycle. The free-threaded build still
+    cannot promise zero, because asyncio leaves a handle cycle there. On that build the check is that
+    nothing the collector reclaims is ours -- no container and no scope dict still carrying the entry
+    -- which is what a surviving cycle would put in front of it.
     """
     last_scope: list[ASGIScope] = []
 
@@ -62,7 +63,7 @@ def test_finished_request_leaves_no_cyclic_garbage(client: TestClient, app: Star
 
     app.router.routes.append(Route("/", Endpoint if class_based else endpoint))
     for _ in range(5):  # let one-time allocations settle before measuring
-        client.get("/")
+        await asgi.get(app)
 
     gc.collect()
     was_enabled = gc.isenabled()
@@ -71,7 +72,7 @@ def test_finished_request_leaves_no_cyclic_garbage(client: TestClient, app: Star
     try:
         requests = 20
         for _ in range(requests):
-            assert client.get("/").status_code == status.HTTP_200_OK
+            assert await asgi.get(app) == [status.HTTP_200_OK]
         collected = gc.collect()
         reclaimed = list(gc.garbage)
     finally:
