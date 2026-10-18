@@ -72,7 +72,7 @@ async def test_finished_request_leaves_no_cyclic_garbage(app: Starlette, class_b
     try:
         requests = 20
         for _ in range(requests):
-            assert await asgi.get(app) == status.HTTP_200_OK
+            assert await asgi.get(app) == [status.HTTP_200_OK]
         collected = gc.collect()
         reclaimed = list(gc.garbage)
     finally:

@@ -3,12 +3,16 @@ import typing
 from starlette.types import ASGIApp, Message
 
 
-async def get(app: ASGIApp, path: str = "/") -> int:
-    """Send one GET straight to ``app``, with no test client in between, and return the status."""
+async def get(app: ASGIApp, path: str = "/") -> list[int]:
+    """Send one GET straight to ``app``, with no test client in between; return the statuses it sent."""
     statuses: list[int] = []
 
     async def receive() -> Message:
-        return {"type": "http.request", "body": b"", "more_body": False}
+        return {
+            "type": "http.request",
+            "body": b"",
+            "more_body": False,
+        }  # pragma: no cover -- GET handlers never read the body
 
     async def send(message: Message) -> None:
         if message["type"] == "http.response.start":
@@ -29,4 +33,4 @@ async def get(app: ASGIApp, path: str = "/") -> int:
         "server": ("testserver", 80),
     }
     await app(scope, receive, send)
-    return statuses[0]
+    return statuses
